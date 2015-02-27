@@ -30,9 +30,8 @@ type Bot struct {
 
 // Take a line and pack it into a struct representing a message
 func ParseLine(line string) (*Message, error) {
-	re, err := regexp.Compile(`(.?*) ?([A-Z]+) ([\w\-\|\[\]\(\)\#\*]*) ?:(.+)$`)
-	log.Printf("%s", err)
-	msg := re.FindAllString(line, 4)
+	re, _ := regexp.Compile(`^(.*?) ?([A-Z]+) ?(.*?) :(.+)`)
+	msg := re.FindStringSubmatch(line)
 	if msg != nil {
 		return &Message{
 			from:    msg[0],
@@ -88,8 +87,18 @@ func pingResponse(conn net.Conn, pong *Message) {
 	fmt.Fprintf(conn, "PONG %s\r\n", pong.content)
 }
 
+func getUser(msg *Message) string {
+	re, _ := regexp.Compile("^:(.+?)!")
+	user := re.FindStringSubmatch(msg.from)[0]
+	return user
+}
+
 func mirror(conn net.Conn, msg *Message) {
-	privmsg(conn, msg.to, msg.content)
+	to := getUser(msg)
+	log.Printf("%s", to)
+	if to == "nanago" {
+		privmsg(conn, to, msg.content)
+	}
 }
 
 func main() {
@@ -110,14 +119,18 @@ func main() {
 		// Pack message into struct
 		msg, err := ParseLine(line)
 		// Perform actions depending on the content of the message
-		if err == nil {
+		if err != nil {
+			break
+		} else {
 			switch {
 			case msg.command == "PONG":
+				log.Printf("PONG %s", line)
 				pingResponse(conn, msg)
 			case msg.command == "PRIVMSG":
 				mirror(conn, msg)
+			default:
+				break
 			}
 		}
-
 	}
 }
