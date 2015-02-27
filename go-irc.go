@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -11,20 +12,9 @@ import (
 )
 
 type Message struct {
-	nick     string
-	user     string
-	hostname string
-	target   string
-	content  string
-}
-
-type Notice struct {
 	from    string
-	target  string
-	content string
-}
-
-type PONG struct {
+	command string
+	to      string
 	content string
 }
 
@@ -39,35 +29,20 @@ type Bot struct {
 }
 
 // Take a line and pack it into a struct representing a message
-func ParseLine(line string) {
-	re_privmsg, _ := regexp.Compile(`\:([\w\-\|\[\]\(\)]+)\!([\w\-\|\[\]\(\)])@([\w\.\-]+) PRIVMSG ([\w\-\|\[\]\(\)\#]+) \:(.+)$`)
-	privmsg := re_privmsg.FindAllString(line, 5)
-
-	re_notice, _ := regexp.Compile(`\:(.?+) NOTICE ([\w\-\|\[\]\(\)\#]+) :(.+)$`)
-	notice := re_notice.FindAllString(line, 3)
-
-	re_ping, _ := regexp.Compile(`PING :(.*)$`)
-	ping := re_ping.FindAllString(line, 1)
-
-	switch {
-	default:
-		return nil
-	case ping != nil:
-		return &PONG{
-			content: ping[0]}
-	case privmsg != nil:
+func ParseLine(line string) (*Message, error) {
+	re, err := regexp.Compile(`(.?*) ?([A-Z]+) ([\w\-\|\[\]\(\)\#\*]*) ?:(.+)$`)
+	log.Printf("%s", err)
+	msg := re.FindAllString(line, 4)
+	if msg != nil {
 		return &Message{
-			nick:     privmsg[0],
-			user:     privmsg[1],
-			hostname: privmsg[2],
-			target:   privmsg[3],
-			content:  privmsg[4]}
-	case notice != nil:
-		return &Notice{
-			from:    notice[0],
-			target:  notice[1],
-			content: notice[2]}
+			from:    msg[0],
+			command: msg[1],
+			to:      msg[2],
+			content: msg[3]}, nil
+	} else {
+		return &Message{}, errors.New(fmt.Sprintf("No command in line %s", line))
 	}
+
 }
 
 func NewBot() *Bot {
@@ -109,12 +84,12 @@ func ping(line string) bool {
 }
 
 // Respond to PING with PONG + the random string
-func pingResponse(conn net.Conn, pong *PONG) {
+func pingResponse(conn net.Conn, pong *Message) {
 	fmt.Fprintf(conn, "PONG %s\r\n", pong.content)
 }
 
 func mirror(conn net.Conn, msg *Message) {
-	privmsg(conn, msg.target, msg.content)
+	privmsg(conn, msg.to, msg.content)
 }
 
 func main() {
@@ -133,18 +108,15 @@ func main() {
 		}
 		fmt.Printf("%s\n", line)
 		// Pack message into struct
-		msg := ParseLine(line)
-
+		msg, err := ParseLine(line)
 		// Perform actions depending on the content of the message
-		switch msg := msg.(type) {
-		default:
-			break
-		case *PONG:
-			pingResponse(conn, msg)
-		case *Message:
-			mirror(conn, msg)
-		case *Notice:
-			break
+		if err == nil {
+			switch {
+			case msg.command == "PONG":
+				pingResponse(conn, msg)
+			case msg.command == "PRIVMSG":
+				mirror(conn, msg)
+			}
 		}
 
 	}
