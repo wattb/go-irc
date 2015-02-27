@@ -18,6 +18,16 @@ type Message struct {
 	content  string
 }
 
+type Notice struct {
+	from    string
+	target  string
+	content string
+}
+
+type PONG struct {
+	content string
+}
+
 type Bot struct {
 	server  string
 	port    string
@@ -29,16 +39,35 @@ type Bot struct {
 }
 
 // Take a line and pack it into a struct representing a message
-func PackMessage(line string) *Message {
-	re, _ := regexp.Compile(`\:([\w\-\|\[\]\(\)]+)\!([\w\-\|\[\]\(\)])@([\w\.\-]+) PRIVMSG ([\w\-\|\[\]\(\)\#]+) \:(.+)$`)
-	match := re.FindAllString(line, 5)
+func ParseLine(line string) {
+	re_privmsg, _ := regexp.Compile(`\:([\w\-\|\[\]\(\)]+)\!([\w\-\|\[\]\(\)])@([\w\.\-]+) PRIVMSG ([\w\-\|\[\]\(\)\#]+) \:(.+)$`)
+	privmsg := re_privmsg.FindAllString(line, 5)
 
-	return &Message{
-		nick:     match[0],
-		user:     match[1],
-		hostname: match[2],
-		target:   match[3],
-		content:  match[4]}
+	re_notice, _ := regexp.Compile(`\:(.?+) NOTICE ([\w\-\|\[\]\(\)\#]+) :(.+)$`)
+	notice := re_notice.FindAllString(line, 3)
+
+	re_ping, _ := regexp.Compile(`PING :(.*)$`)
+	ping := re_ping.FindAllString(line, 1)
+
+	switch {
+	default:
+		return nil
+	case ping != nil:
+		return &PONG{
+			content: ping[0]}
+	case privmsg != nil:
+		return &Message{
+			nick:     privmsg[0],
+			user:     privmsg[1],
+			hostname: privmsg[2],
+			target:   privmsg[3],
+			content:  privmsg[4]}
+	case notice != nil:
+		return &Notice{
+			from:    notice[0],
+			target:  notice[1],
+			content: notice[2]}
+	}
 }
 
 func NewBot() *Bot {
@@ -80,13 +109,8 @@ func ping(line string) bool {
 }
 
 // Respond to PING with PONG + the random string
-func pingResponse(line string, conn net.Conn) {
-	pong := strings.Split(line, "PING")[1]
-	fmt.Fprintf(conn, "PONG %s\r\n", pong)
-}
-
-func atSelf(msg *Message, ircbot *Bot) bool {
-	return (msg.target == ircbot.nick)
+func pingResponse(conn net.Conn, pong *PONG) {
+	fmt.Fprintf(conn, "PONG %s\r\n", pong.content)
 }
 
 func mirror(conn net.Conn, msg *Message) {
@@ -109,14 +133,18 @@ func main() {
 		}
 		fmt.Printf("%s\n", line)
 		// Pack message into struct
-		msg := PackMessage(line)
+		msg := ParseLine(line)
 
 		// Perform actions depending on the content of the message
-		switch {
-		case ping(line):
-			pingResponse(line, conn)
-		case atSelf(msg, ircbot):
+		switch msg := msg.(type) {
+		default:
+			break
+		case *PONG:
+			pingResponse(conn, msg)
+		case *Message:
 			mirror(conn, msg)
+		case *Notice:
+			break
 		}
 
 	}
