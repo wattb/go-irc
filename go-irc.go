@@ -34,10 +34,10 @@ func ParseLine(line string) (*Message, error) {
 	msg := re.FindStringSubmatch(line)
 	if msg != nil {
 		return &Message{
-			from:    msg[0],
-			command: msg[1],
-			to:      msg[2],
-			content: msg[3]}, nil
+			from:    msg[1],
+			command: msg[2],
+			to:      msg[3],
+			content: msg[4]}, nil
 	} else {
 		return &Message{}, errors.New(fmt.Sprintf("No command in line %s", line))
 	}
@@ -95,7 +95,6 @@ func getUser(msg *Message) string {
 
 func mirror(conn net.Conn, msg *Message) {
 	to := getUser(msg)
-	log.Printf("%s", to)
 	if to == "nanago" {
 		privmsg(conn, to, msg.content)
 	}
@@ -120,16 +119,16 @@ func main() {
 		msg, err := ParseLine(line)
 		// Perform actions depending on the content of the message
 		if err != nil {
-			break
+			//break
 		} else {
+			log.Printf("%s", msg.from)
+			log.Printf("%s", msg.to)
+			log.Printf("%s", msg.command)
+			log.Printf("%s", msg.content)
 			switch {
-			case msg.command == "PONG":
+			case msg.command == "PING":
 				log.Printf("PONG %s", line)
 				pingResponse(conn, msg)
-			case msg.command == "PRIVMSG":
-				mirror(conn, msg)
-			default:
-				break
 			}
 		}
 	}
