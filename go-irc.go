@@ -12,29 +12,35 @@ import (
 )
 
 type Message struct {
-	from    string
+	source  string
 	command string
 	to      string
 	content string
+}
+
+type User struct {
+	nick string
+	name string
+	host string
 }
 
 type Bot struct {
 	server  string
 	port    string
 	nick    string
-	user    string
 	channel string
 	pass    string
+	owner   string
 	conn    net.Conn
 }
 
 // Take a line and pack it into a struct representing a message
-func ParseLine(line string) (*Message, error) {
+func parseLine(line string) (*Message, error) {
 	re, _ := regexp.Compile(`^(.*?) ?([A-Z]+) ?(.*?) :(.+)`)
 	msg := re.FindStringSubmatch(line)
 	if msg != nil {
 		return &Message{
-			from:    msg[1],
+			source:  msg[1],
 			command: msg[2],
 			to:      msg[3],
 			content: msg[4]}, nil
@@ -51,8 +57,8 @@ func NewBot() *Bot {
 		nick:    "nanagonanashuu",
 		channel: "#7l7wtest",
 		pass:    "",
-		conn:    nil,
-		user:    "nanagonanashuu"}
+		owner:   "nanago",
+		conn:    nil}
 }
 
 // Connect bot to IRC server
@@ -87,23 +93,33 @@ func pingResponse(conn net.Conn, pong *Message) {
 	fmt.Fprintf(conn, "PONG %s\r\n", pong.content)
 }
 
-func getUser(msg *Message) string {
-	re, _ := regexp.Compile("^:(.+?)!")
-	user := re.FindStringSubmatch(msg.from)[0]
-	return user
-}
+// Parse message source for nick, user and hostname values
+func parseSource(source string) string {
+	re, _ := regexp.Compile("^:(.+?)!(.*)@(.*)$")
+	out := re.FindStringSubmatch(source)
+	if out != nil {
+		return &User{nick: out[1],
+			name: out[2],
+			host: out[3]}, nil
+	} else {
+		return &User{}, error("No user found in message source")
+	}
 
-func mirror(conn net.Conn, msg *Message) {
-	to := getUser(msg)
-	if to == "nanago" {
-		privmsg(conn, to, msg.content)
+}
+func commands(conn net.Conn, msg *Message, bot *Bot) {
+	user, err := parseSource(msg.source)
+	if err != nil {
+		log.Printf("Parsing is broken somewhere for %s", msg.source)
+	}
+	if user.nick == bot.owner {
+		//
 	}
 }
 
 func main() {
-	ircbot := NewBot()
-	conn, _ := ircbot.Connect()
-	join(conn, ircbot)
+	bot := NewBot()
+	conn, _ := bot.Connect()
+	join(conn, bot)
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
@@ -115,20 +131,21 @@ func main() {
 			break
 		}
 		fmt.Printf("%s\n", line)
+
 		// Pack message into struct
-		msg, err := ParseLine(line)
+		msg, err := parseLine(line)
 		// Perform actions depending on the content of the message
-		if err != nil {
-			//break
-		} else {
-			log.Printf("%s", msg.from)
+		if err == nil {
+			log.Printf("%s", msg.source)
 			log.Printf("%s", msg.to)
 			log.Printf("%s", msg.command)
 			log.Printf("%s", msg.content)
+
 			switch {
 			case msg.command == "PING":
-				log.Printf("PONG %s", line)
 				pingResponse(conn, msg)
+			case msg.command == "PRIVMSG":
+				commands(conn, msg, bot)
 			}
 		}
 	}
