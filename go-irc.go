@@ -124,15 +124,21 @@ func parseCommand(command string) (*Com, error) {
 	}
 }
 
+func wiki(conn net.Conn, args string) {
+	res := fmt.Sprintf("https://en.wikipedia.org/w/index.php?search=%s&title=Special%%3ASearch&go=Go", args)
+	privmsg(conn, "#7l7wtest", res)
+}
+
 func commands(conn net.Conn, msg *Message, bot *Bot) {
-	command, args := parseCommand(msg.content)
-	user, err := parseSource(msg.source)
-	if err != nil {
+	com, err1 := parseCommand(msg.content)
+	user, err2 := parseSource(msg.source)
+	if err1 != nil || err2 != nil {
 		log.Printf("Parsing is broken somewhere for %s", msg.source)
 	}
 	if user.nick == bot.owner {
-		switch {
-		case strings.HasPrefix(command.command, "!!wiki"):
+		switch com.command {
+		case "wiki":
+			wiki(conn, com.args)
 		}
 	}
 }
