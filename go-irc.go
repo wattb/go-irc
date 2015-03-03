@@ -94,7 +94,7 @@ func pingResponse(conn net.Conn, pong *Message) {
 }
 
 // Parse message source for nick, user and hostname values
-func parseSource(source string) string {
+func parseSource(source string) (*User, error) {
 	re, _ := regexp.Compile("^:(.+?)!(.*)@(.*)$")
 	out := re.FindStringSubmatch(source)
 	if out != nil {
@@ -102,17 +102,38 @@ func parseSource(source string) string {
 			name: out[2],
 			host: out[3]}, nil
 	} else {
-		return &User{}, error("No user found in message source")
+		return &User{}, errors.New("No user found in message source")
 	}
 
 }
+
+type Com struct {
+	command string
+	args    string
+}
+
+func parseCommand(command string) (*Com, error) {
+	re, _ := regexp.Compile(`!!(\w+) ?(.*)$`)
+	out := re.FindStringSubmatch(command)
+	if out != nil {
+		return &Com{
+			command: out[1],
+			args:    out[2]}, nil
+	} else {
+		return &Com{}, errors.New("Command could not be parsed")
+	}
+}
+
 func commands(conn net.Conn, msg *Message, bot *Bot) {
+	command, args := parseCommand(msg.content)
 	user, err := parseSource(msg.source)
 	if err != nil {
 		log.Printf("Parsing is broken somewhere for %s", msg.source)
 	}
 	if user.nick == bot.owner {
-		//
+		switch {
+		case strings.HasPrefix(command.command, "!!wiki"):
+		}
 	}
 }
 
