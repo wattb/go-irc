@@ -80,8 +80,13 @@ func join(conn net.Conn, ircbot *Bot) {
 	fmt.Fprintf(conn, "JOIN %s\r\n", ircbot.channel)
 }
 
-func privmsg(conn net.Conn, target string, message string) {
-	fmt.Fprintf(conn, "PRIVMSG %s %s\r\n", target, message)
+func respond(bot *Bot, user *User, response string, msg *Message) {
+	if msg.to == bot.nick {
+		fmt.Fprintf(bot.conn, "PRIVMSG %s :%s\r\n", user.nick, response)
+	} else {
+		fmt.Fprintf(bot.conn, "PRIVMSG %s :%s\r\n", msg.to, response)
+	}
+
 }
 
 // Check if line is PING
@@ -114,7 +119,7 @@ type Com struct {
 }
 
 func parseCommand(command string) (*Com, error) {
-	re, _ := regexp.Compile(`!!(\w+) ?(.*)$`)
+	re, _ := regexp.Compile(`.(\w+) ?(.*)$`)
 	out := re.FindStringSubmatch(command)
 	if out != nil {
 		return &Com{
@@ -125,18 +130,32 @@ func parseCommand(command string) (*Com, error) {
 	}
 }
 
-func wiki(bot *Bot, args string) {
-	res := fmt.Sprintf("https://en.wikipedia.org/w/index.php?search=%s&title=Special%%3ASearch&go=Go", args)
-	privmsg(bot.conn, bot.channel, res)
+func wiki(bot *Bot, args string) string {
+	return fmt.Sprintf("https://en.wikipedia.org/w/index.php?search=%s&title=Special%%3ASearch&go=Go", args)
 }
 
-func choose(bot *Bot, args string) {
+func choose(bot *Bot, args string) string {
 	choices := strings.Split(args, ",")
-	privmsg(bot.conn, bot.channel, choices[rand.Intn(len(choices))])
+	return choices[rand.Intn(len(choices))]
 }
 
-func set(bot *Bot, com string) {
-	//
+func set(bot *Bot, com string, user *User) string {
+	return "Set"
+}
+
+func shuffle(a []string) {
+	for i := range a {
+		j := rand.Intn(i + 1)
+		a[i], a[j] = a[j], a[i]
+	}
+}
+
+func order(bot *Bot, args string) string {
+	args = strings.TrimSpace(args)
+	choices := strings.Split(args, ",")
+	shuffle(choices)
+	ordered := strings.Join(choices, ",")
+	return ordered
 }
 
 func commands(bot *Bot, msg *Message) {
@@ -145,46 +164,21 @@ func commands(bot *Bot, msg *Message) {
 	if err1 != nil || err2 != nil {
 		log.Printf("Parsing is broken somewhere for %s", msg.source)
 	}
-	if user.nick == bot.owner {
-		switch com.command {
-		case "wiki":
-			wiki(bot, com.args)
-		case "c":
-			choose(bot, com.args)
-		case "set":
-			set(bot, com.args)
-		}
-	}
-}
 
-//func open_config(config_file *string) (*Bot, error) {
-//	file, err := os.Open(config_file)
-//
-//	if err == nil {
-//		return &Bot{
-//			server:  server,
-//			port:    port,
-//			nick:    nick,
-//			channel: channel,
-//			pass:    pass,
-//			owner:   owner,
-//			conn:    nil}, nil
-//	} else {
-//		return &Bot{}, errors.New(fmt.Sprintf("Failed to read config file: %s", err))
-//	}
-//}
-//
-//func setup() {
-//	config_file := flag.String("config-file", ".goirc", "Config file to use")
-//	server := flag.String("server", "irc.freenode.net", "IRC server to connect to")
-//	port := flag.String("port", "6667", "Port to use when connecting to server")
-//	nick := flag.String("nick", "nanagobot", "Nick for bot to use")
-//	owner := flag.String("owner", "nanago", "Nick of bot owner")
-//	channel := flag.String("channel", "#7l7wtest", "Channel to join")
-//	flag.Parse()
-//	//bot, err := open_config(config_file)
-//
-//}
+	args := com.args
+	res := ""
+	switch com.command {
+	case "wiki":
+		res = wiki(bot, args)
+	case "c":
+		res = choose(bot, args)
+	case "o":
+		res = order(bot, args)
+	case "set":
+		res = set(bot, args, user)
+	}
+	respond(bot, user, res, msg)
+}
 
 func main() {
 
