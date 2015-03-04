@@ -90,8 +90,8 @@ func ping(line string) bool {
 }
 
 // Respond to PING with PONG + the random string
-func pingResponse(conn net.Conn, pong *Message) {
-	fmt.Fprintf(conn, "PONG %s\r\n", pong.content)
+func pingResponse(bot *Bot, pong *Message) {
+	fmt.Fprintf(bot.conn, "PONG %s\r\n", pong.content)
 }
 
 // Parse message source for nick, user and hostname values
@@ -125,17 +125,21 @@ func parseCommand(command string) (*Com, error) {
 	}
 }
 
-func wiki(conn net.Conn, args string) {
+func wiki(bot *Bot, args string) {
 	res := fmt.Sprintf("https://en.wikipedia.org/w/index.php?search=%s&title=Special%%3ASearch&go=Go", args)
-	privmsg(conn, "#7l7wtest", res)
+	privmsg(bot.conn, bot.channel, res)
 }
 
-func choose(conn net.Conn, args string) {
+func choose(bot *Bot, args string) {
 	choices := strings.Split(args, ",")
-	privmsg(conn, "#7l7wtest", choices[rand.Intn(len(choices))])
+	privmsg(bot.conn, bot.channel, choices[rand.Intn(len(choices))])
 }
 
-func commands(conn net.Conn, msg *Message, bot *Bot) {
+func set(bot *Bot, com string) {
+	//
+}
+
+func commands(bot *Bot, msg *Message) {
 	com, err1 := parseCommand(msg.content)
 	user, err2 := parseSource(msg.source)
 	if err1 != nil || err2 != nil {
@@ -144,9 +148,11 @@ func commands(conn net.Conn, msg *Message, bot *Bot) {
 	if user.nick == bot.owner {
 		switch com.command {
 		case "wiki":
-			wiki(conn, com.args)
+			wiki(bot, com.args)
 		case "c":
-			choose(conn, com.args)
+			choose(bot, com.args)
+		case "set":
+			set(bot, com.args)
 		}
 	}
 }
@@ -208,9 +214,9 @@ func main() {
 
 			switch {
 			case msg.command == "PING":
-				pingResponse(conn, msg)
+				pingResponse(bot, msg)
 			case msg.command == "PRIVMSG":
-				commands(conn, msg, bot)
+				commands(bot, msg)
 			}
 		}
 	}
