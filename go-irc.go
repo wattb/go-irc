@@ -3,10 +3,12 @@ package main
 import (
 	"bufio"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/textproto"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -143,7 +145,37 @@ func commands(conn net.Conn, msg *Message, bot *Bot) {
 	}
 }
 
+func open_config(config_file *string) (*Bot, error) {
+	file, err := os.Open(config_file)
+
+	if err == nil {
+		return &Bot{
+			server:  server,
+			port:    port,
+			nick:    nick,
+			channel: channel,
+			pass:    pass,
+			owner:   owner,
+			conn:    nil}, nil
+	} else {
+		return &Bot{}, errors.New(fmt.Sprintf("Failed to read config file: %s", err))
+	}
+}
+
+func setup() {
+	config_file := flag.String("config-file", ".goirc", "Config file to use")
+	server := flag.String("server", "irc.freenode.net", "IRC server to connect to")
+	port := flag.String("port", "6667", "Port to use when connecting to server")
+	nick := flag.String("nick", "nanagobot", "Nick for bot to use")
+	owner := flag.String("owner", "nanago", "Nick of bot owner")
+	channel := flag.String("channel", "#7l7wtest", "Channel to join")
+	flag.Parse()
+	bot, err := open_config(config_file)
+
+}
+
 func main() {
+
 	bot := NewBot()
 	conn, _ := bot.Connect()
 	join(conn, bot)
