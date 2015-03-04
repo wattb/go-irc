@@ -3,12 +3,11 @@ package main
 import (
 	"bufio"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"net/textproto"
-	"os"
 	"regexp"
 	"strings"
 )
@@ -131,6 +130,11 @@ func wiki(conn net.Conn, args string) {
 	privmsg(conn, "#7l7wtest", res)
 }
 
+func choose(conn net.Conn, args string) {
+	choices := strings.Split(args, ",")
+	privmsg(conn, "#7l7wtest", choices[rand.Intn(len(choices))])
+}
+
 func commands(conn net.Conn, msg *Message, bot *Bot) {
 	com, err1 := parseCommand(msg.content)
 	user, err2 := parseSource(msg.source)
@@ -141,38 +145,40 @@ func commands(conn net.Conn, msg *Message, bot *Bot) {
 		switch com.command {
 		case "wiki":
 			wiki(conn, com.args)
+		case "c":
+			choose(conn, com.args)
 		}
 	}
 }
 
-func open_config(config_file *string) (*Bot, error) {
-	file, err := os.Open(config_file)
-
-	if err == nil {
-		return &Bot{
-			server:  server,
-			port:    port,
-			nick:    nick,
-			channel: channel,
-			pass:    pass,
-			owner:   owner,
-			conn:    nil}, nil
-	} else {
-		return &Bot{}, errors.New(fmt.Sprintf("Failed to read config file: %s", err))
-	}
-}
-
-func setup() {
-	config_file := flag.String("config-file", ".goirc", "Config file to use")
-	server := flag.String("server", "irc.freenode.net", "IRC server to connect to")
-	port := flag.String("port", "6667", "Port to use when connecting to server")
-	nick := flag.String("nick", "nanagobot", "Nick for bot to use")
-	owner := flag.String("owner", "nanago", "Nick of bot owner")
-	channel := flag.String("channel", "#7l7wtest", "Channel to join")
-	flag.Parse()
-	bot, err := open_config(config_file)
-
-}
+//func open_config(config_file *string) (*Bot, error) {
+//	file, err := os.Open(config_file)
+//
+//	if err == nil {
+//		return &Bot{
+//			server:  server,
+//			port:    port,
+//			nick:    nick,
+//			channel: channel,
+//			pass:    pass,
+//			owner:   owner,
+//			conn:    nil}, nil
+//	} else {
+//		return &Bot{}, errors.New(fmt.Sprintf("Failed to read config file: %s", err))
+//	}
+//}
+//
+//func setup() {
+//	config_file := flag.String("config-file", ".goirc", "Config file to use")
+//	server := flag.String("server", "irc.freenode.net", "IRC server to connect to")
+//	port := flag.String("port", "6667", "Port to use when connecting to server")
+//	nick := flag.String("nick", "nanagobot", "Nick for bot to use")
+//	owner := flag.String("owner", "nanago", "Nick of bot owner")
+//	channel := flag.String("channel", "#7l7wtest", "Channel to join")
+//	flag.Parse()
+//	//bot, err := open_config(config_file)
+//
+//}
 
 func main() {
 
