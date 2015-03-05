@@ -80,19 +80,21 @@ func (bot *Bot) Connect() (conn net.Conn, err error) {
 }
 
 // Set nick, join channel
-func join(conn net.Conn, bot *Bot) {
-	fmt.Fprintf(conn, "USER %s 8 * :%s\r\n", bot.nick, bot.nick)
-	fmt.Fprintf(conn, "NICK %s\r\n", bot.nick)
-	fmt.Fprintf(conn, "JOIN %s\r\n", bot.channel)
+func join(bot *Bot) {
+	fmt.Fprintf(bot.conn, "USER %s 8 * :%s\r\n", bot.nick, bot.nick)
+	fmt.Fprintf(bot.conn, "NICK %s\r\n", bot.nick)
+	fmt.Fprintf(bot.conn, "JOIN %s\r\n", bot.channel)
 }
 
 func respond(bot *Bot, user *User, response string, msg *Message) {
+	res := ""
 	if msg.to == bot.nick {
-		fmt.Fprintf(bot.conn, "PRIVMSG %s :%s\r\n", user.nick, response)
+		res = fmt.Sprintf("PRIVMSG %s :%s\r\n", user.nick, response)
 	} else {
-		fmt.Fprintf(bot.conn, "PRIVMSG %s :%s: %s\r\n", msg.to, user.nick, response)
+		res = fmt.Sprintf("PRIVMSG %s :%s: %s\r\n", msg.to, user.nick, response)
 	}
-
+	fmt.Printf("--> %s", res)
+	fmt.Fprintf(bot.conn, res)
 }
 
 // Check if line is PING
@@ -102,7 +104,9 @@ func ping(line string) bool {
 
 // Respond to PING with PONG + the random string
 func pingResponse(bot *Bot, pong *Message) {
-	fmt.Fprintf(bot.conn, "PONG %s\r\n", pong.content)
+	res := fmt.Sprintf("PONG %s\r\n", pong.content)
+	fmt.Printf("--> %s", res)
+	fmt.Fprintf(bot.conn, res)
 }
 
 // Parse message source for nick, user and hostname values
@@ -217,7 +221,7 @@ func main() {
 
 	bot := NewBot()
 	conn, _ := bot.Connect()
-	join(conn, bot)
+	join(bot)
 	defer conn.Close()
 
 	f, err := os.Create("/tmp/markov")
@@ -235,7 +239,7 @@ func main() {
 			log.Fatal("Error reading connection stream")
 			break
 		}
-		fmt.Printf("%s\n", line)
+		fmt.Printf("<-- %s\n", line)
 
 		// Pack message into struct
 		msg, err := parseLine(line)
