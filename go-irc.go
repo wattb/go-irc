@@ -25,6 +25,11 @@ type User struct {
 	host string
 }
 
+type Com struct {
+	command string
+	args    string
+}
+
 type Bot struct {
 	server  string
 	port    string
@@ -74,10 +79,10 @@ func (bot *Bot) Connect() (conn net.Conn, err error) {
 }
 
 // Set nick, join channel
-func join(conn net.Conn, ircbot *Bot) {
-	fmt.Fprintf(conn, "USER %s 8 * :%s\r\n", ircbot.nick, ircbot.nick)
-	fmt.Fprintf(conn, "NICK %s\r\n", ircbot.nick)
-	fmt.Fprintf(conn, "JOIN %s\r\n", ircbot.channel)
+func join(conn net.Conn, bot *Bot) {
+	fmt.Fprintf(conn, "USER %s 8 * :%s\r\n", bot.nick, bot.nick)
+	fmt.Fprintf(conn, "NICK %s\r\n", bot.nick)
+	fmt.Fprintf(conn, "JOIN %s\r\n", bot.channel)
 }
 
 func respond(bot *Bot, user *User, response string, msg *Message) {
@@ -113,11 +118,6 @@ func parseSource(source string) (*User, error) {
 
 }
 
-type Com struct {
-	command string
-	args    string
-}
-
 func parseCommand(command string) (*Com, error) {
 	re, _ := regexp.Compile(`.(\w+) ?(.*)$`)
 	out := re.FindStringSubmatch(command)
@@ -139,8 +139,32 @@ func choose(bot *Bot, args string) string {
 	return choices[rand.Intn(len(choices))]
 }
 
-func set(bot *Bot, com string, user *User) string {
-	return "Set"
+func nick(bot *Bot, nick string) {
+	bot.nick = nick
+	fmt.Fprintf(bot.conn, "NICK %s\r\n", bot.nick)
+}
+
+func set(bot *Bot, args string, user *User) string {
+	if user.nick != bot.owner {
+		return "Only the bot owner can set values!"
+	}
+	in := strings.Split(args, " ")
+	if len(args) < 2 {
+		return "The set command requires two arguments!"
+	}
+
+	com := in[0]
+	tar := in[1]
+	switch com {
+	case "nick":
+		nick(bot, tar)
+		return fmt.Sprintf("Nick set to %s.", bot.nick)
+	case "owner":
+		bot.owner = tar
+		return fmt.Sprintf("Owner set to %s.", bot.owner)
+	default:
+		return "Unrecognised command! Options are: nick, owner."
+	}
 }
 
 func shuffle(a []string) {
@@ -154,7 +178,7 @@ func order(bot *Bot, args string) string {
 	args = strings.TrimSpace(args)
 	choices := strings.Split(args, ",")
 	shuffle(choices)
-	ordered := strings.Join(choices, ",")
+	ordered := strings.Join(choices, ", ")
 	return ordered
 }
 
