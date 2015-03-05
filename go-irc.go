@@ -84,7 +84,7 @@ func respond(bot *Bot, user *User, response string, msg *Message) {
 	if msg.to == bot.nick {
 		fmt.Fprintf(bot.conn, "PRIVMSG %s :%s\r\n", user.nick, response)
 	} else {
-		fmt.Fprintf(bot.conn, "PRIVMSG %s :%s\r\n", msg.to, response)
+		fmt.Fprintf(bot.conn, "PRIVMSG %s :%s: %s\r\n", msg.to, user.nick, response)
 	}
 
 }
