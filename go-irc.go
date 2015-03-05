@@ -93,7 +93,7 @@ func respond(bot *Bot, user *User, response string, msg *Message) {
 	} else {
 		res = fmt.Sprintf("PRIVMSG %s :%s: %s\r\n", msg.to, user.nick, response)
 	}
-	fmt.Printf("--> %s", res)
+	log.Printf("--> %s", res)
 	fmt.Fprintf(bot.conn, res)
 }
 
@@ -105,7 +105,7 @@ func ping(line string) bool {
 // Respond to PING with PONG + the random string
 func pingResponse(bot *Bot, pong *Message) {
 	res := fmt.Sprintf("PONG %s\r\n", pong.content)
-	fmt.Printf("--> %s", res)
+	log.Printf("--> %s", res)
 	fmt.Fprintf(bot.conn, res)
 }
 
@@ -239,7 +239,7 @@ func main() {
 			log.Fatal("Error reading connection stream")
 			break
 		}
-		fmt.Printf("<-- %s\n", line)
+		log.Printf("<-- %s\n", line)
 
 		// Pack message into struct
 		msg, err := parseLine(line)
