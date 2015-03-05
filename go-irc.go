@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net"
 	"net/textproto"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -119,7 +120,7 @@ func parseSource(source string) (*User, error) {
 }
 
 func parseCommand(command string) (*Com, error) {
-	re, _ := regexp.Compile(`.(\w+) ?(.*)$`)
+	re, _ := regexp.Compile(`\.(\w+) ?(.*)$`)
 	out := re.FindStringSubmatch(command)
 	if out != nil {
 		return &Com{
@@ -182,26 +183,34 @@ func order(bot *Bot, args string) string {
 	return ordered
 }
 
+func markov(bot *Bot, args string) string {
+	return "This is supposed to be generated using a markov chain"
+}
+
 func commands(bot *Bot, msg *Message) {
 	com, err1 := parseCommand(msg.content)
 	user, err2 := parseSource(msg.source)
-	if err1 != nil || err2 != nil {
-		log.Printf("Parsing is broken somewhere for %s", msg.source)
+	if err1 == nil || err2 == nil {
+		args := com.args
+		res := ""
+		switch com.command {
+		case "wiki":
+			res = wiki(bot, args)
+		case "c":
+			res = choose(bot, args)
+		case "o":
+			res = order(bot, args)
+		case "set":
+			res = set(bot, args, user)
+		case "markov":
+			res = markov(bot, args)
+		case "commands":
+			res = "The available commands are: wiki, c, o, set, markov."
+		}
+		if res != "" {
+			respond(bot, user, res, msg)
+		}
 	}
-
-	args := com.args
-	res := ""
-	switch com.command {
-	case "wiki":
-		res = wiki(bot, args)
-	case "c":
-		res = choose(bot, args)
-	case "o":
-		res = order(bot, args)
-	case "set":
-		res = set(bot, args, user)
-	}
-	respond(bot, user, res, msg)
 }
 
 func main() {
@@ -210,6 +219,13 @@ func main() {
 	conn, _ := bot.Connect()
 	join(conn, bot)
 	defer conn.Close()
+
+	f, err := os.Create("/tmp/markov")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	markov := bufio.NewWriter(f)
 
 	reader := bufio.NewReader(conn)
 	tp := textproto.NewReader(reader)
@@ -223,13 +239,13 @@ func main() {
 
 		// Pack message into struct
 		msg, err := parseLine(line)
+		if len(msg.content) > 10 && msg.to == bot.channel {
+			markov.WriteString(fmt.Sprintf("%s\n", msg.content))
+			markov.Flush()
+		}
+
 		// Perform actions depending on the content of the message
 		if err == nil {
-			log.Printf("%s", msg.source)
-			log.Printf("%s", msg.to)
-			log.Printf("%s", msg.command)
-			log.Printf("%s", msg.content)
-
 			switch {
 			case msg.command == "PING":
 				pingResponse(bot, msg)
