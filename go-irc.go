@@ -104,7 +104,7 @@ func ping(line string) bool {
 
 // Respond to PING with PONG + the random string
 func pingResponse(bot *Bot, pong *Message) {
-	res := fmt.Sprintf("PONG %s\r\n", pong.content)
+	res := fmt.Sprintf("PONG :%s\r\n", pong.content)
 	log.Printf("--> %s", res)
 	fmt.Fprintf(bot.conn, res)
 }
@@ -217,6 +217,11 @@ func commands(bot *Bot, msg *Message) {
 	}
 }
 
+func markov_write(writer *bufio.Writer, words string) {
+	writer.WriteString(fmt.Sprintf("%s\n", words))
+	writer.Flush()
+}
+
 func main() {
 
 	bot := NewBot()
@@ -229,7 +234,7 @@ func main() {
 		panic(err)
 	}
 	defer f.Close()
-	markov := bufio.NewWriter(f)
+	writer := bufio.NewWriter(f)
 
 	reader := bufio.NewReader(conn)
 	tp := textproto.NewReader(reader)
@@ -243,9 +248,8 @@ func main() {
 
 		// Pack message into struct
 		msg, err := parseLine(line)
-		if len(msg.content) > 10 && msg.to == bot.channel {
-			markov.WriteString(fmt.Sprintf("%s\n", msg.content))
-			markov.Flush()
+		if msg.to == bot.channel {
+			go markov_write(writer, msg.content)
 		}
 
 		// Perform actions depending on the content of the message
