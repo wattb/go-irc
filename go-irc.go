@@ -180,10 +180,13 @@ func shuffle(a []string) {
 }
 
 func order(bot *Bot, args string) string {
-	args = strings.TrimSpace(args)
 	choices := strings.Split(args, ",")
-	shuffle(choices)
-	ordered := strings.Join(choices, ", ")
+	trimmed := []string{}
+	for _, w := range choices {
+		trimmed = append(trimmed, strings.TrimSpace(w))
+	}
+	shuffle(trimmed)
+	ordered := strings.Join(choices, ",")
 	return ordered
 }
 
