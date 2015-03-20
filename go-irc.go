@@ -13,25 +13,25 @@ import (
 	"strings"
 )
 
-type Message struct {
+type message struct {
 	source  string
 	command string
 	to      string
 	content string
 }
 
-type User struct {
+type user struct {
 	nick string
 	name string
 	host string
 }
 
-type Com struct {
+type com struct {
 	command string
 	args    string
 }
 
-type Bot struct {
+type bot struct {
 	server  string
 	port    string
 	nick    string
@@ -42,23 +42,23 @@ type Bot struct {
 }
 
 // Take a line and pack it into a struct representing a message
-func parseLine(line string) (*Message, error) {
+func parseLine(line string) (*message, error) {
 	re, _ := regexp.Compile(`^(.*?) ?([A-Z]+) ?(.*?) :(.+)`)
 	msg := re.FindStringSubmatch(line)
 	if msg != nil {
-		return &Message{
+		return &message{
 			source:  msg[1],
 			command: msg[2],
 			to:      msg[3],
 			content: msg[4]}, nil
 	} else {
-		return &Message{}, errors.New(fmt.Sprintf("No command in line %s", line))
+		return &message{}, errors.New(fmt.Sprintf("No command in line %s", line))
 	}
 
 }
 
-func NewBot() *Bot {
-	return &Bot{
+func newBot() *bot {
+	return &bot{
 		server:  "irc.freenode.net",
 		port:    "6667",
 		nick:    "nanagonanashuu",
@@ -69,7 +69,7 @@ func NewBot() *Bot {
 }
 
 // Connect bot to IRC server
-func (bot *Bot) Connect() (conn net.Conn, err error) {
+func (bot *bot) Connect() (conn net.Conn, err error) {
 	conn, err = net.Dial("tcp", bot.server+":"+bot.port)
 	if err != nil {
 		log.Fatal("Unable to connect to IRC server", err)
@@ -80,13 +80,13 @@ func (bot *Bot) Connect() (conn net.Conn, err error) {
 }
 
 // Set nick, join channel
-func join(bot *Bot) {
+func join(bot *bot) {
 	fmt.Fprintf(bot.conn, "USER %s 8 * :%s\r\n", bot.nick, bot.nick)
 	fmt.Fprintf(bot.conn, "NICK %s\r\n", bot.nick)
 	fmt.Fprintf(bot.conn, "JOIN %s\r\n", bot.channel)
 }
 
-func respond(bot *Bot, user *User, response string, msg *Message) {
+func respond(bot *bot, user *user, response string, msg *message) {
 	res := ""
 	if msg.to == bot.nick {
 		res = fmt.Sprintf("PRIVMSG %s :%s\r\n", user.nick, response)
@@ -103,53 +103,53 @@ func ping(line string) bool {
 }
 
 // Respond to PING with PONG + the random string
-func pingResponse(bot *Bot, pong *Message) {
+func pingResponse(bot *bot, pong *message) {
 	res := fmt.Sprintf("PONG :%s\r\n", pong.content)
 	log.Printf("--> %s", res)
 	fmt.Fprintf(bot.conn, res)
 }
 
 // Parse message source for nick, user and hostname values
-func parseSource(source string) (*User, error) {
+func parseSource(source string) (*user, error) {
 	re, _ := regexp.Compile("^:(.+?)!(.*)@(.*)$")
 	out := re.FindStringSubmatch(source)
 	if out != nil {
-		return &User{nick: out[1],
+		return &user{nick: out[1],
 			name: out[2],
 			host: out[3]}, nil
 	} else {
-		return &User{}, errors.New("No user found in message source")
+		return &user{}, errors.New("No user found in message source")
 	}
 
 }
 
-func parseCommand(command string) (*Com, error) {
+func parseCommand(command string) (*com, error) {
 	re, _ := regexp.Compile(`\.(\w+) ?(.*)$`)
 	out := re.FindStringSubmatch(command)
 	if out != nil {
-		return &Com{
+		return &com{
 			command: out[1],
 			args:    out[2]}, nil
 	} else {
-		return &Com{}, errors.New("Command could not be parsed")
+		return &com{}, errors.New("Command could not be parsed")
 	}
 }
 
-func wiki(bot *Bot, args string) string {
+func wiki(bot *bot, args string) string {
 	return fmt.Sprintf("https://en.wikipedia.org/w/index.php?search=%s&title=Special%%3ASearch&go=Go", args)
 }
 
-func choose(bot *Bot, args string) string {
+func choose(bot *bot, args string) string {
 	choices := strings.Split(args, ",")
 	return choices[rand.Intn(len(choices))]
 }
 
-func nick(bot *Bot, nick string) {
+func nick(bot *bot, nick string) {
 	bot.nick = nick
 	fmt.Fprintf(bot.conn, "NICK %s\r\n", bot.nick)
 }
 
-func set(bot *Bot, args string, user *User) string {
+func set(bot *bot, args string, user *user) string {
 	if user.nick != bot.owner {
 		return "Only the bot owner can set values!"
 	}
@@ -179,7 +179,7 @@ func shuffle(a []string) {
 	}
 }
 
-func order(bot *Bot, args string) string {
+func order(bot *bot, args string) string {
 	choices := strings.Split(args, ",")
 	trimmed := []string{}
 	for _, w := range choices {
@@ -190,11 +190,11 @@ func order(bot *Bot, args string) string {
 	return ordered
 }
 
-func markov(bot *Bot, args string) string {
+func markov(bot *bot, args string) string {
 	return "This is supposed to be generated using a markov chain"
 }
 
-func commands(bot *Bot, msg *Message) {
+func commands(bot *bot, msg *message) {
 	com, err1 := parseCommand(msg.content)
 	user, err2 := parseSource(msg.source)
 	if err1 == nil || err2 == nil {
@@ -227,7 +227,7 @@ func markov_write(writer *bufio.Writer, words string) {
 
 func main() {
 
-	bot := NewBot()
+	bot := newBot()
 	conn, _ := bot.Connect()
 	join(bot)
 	defer conn.Close()
