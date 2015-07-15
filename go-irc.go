@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"math/rand"
@@ -57,15 +58,15 @@ func parseLine(line string) (*Message, error) {
 
 }
 
-func NewBot() *Bot {
+func NewBot(nick, server, port, owner, channel, pass string) *Bot {
 	return &Bot{
-		server:  "irc.freenode.net",
-		port:    "6667",
-		nick:    "nanagonanashuu",
-		channel: "#7l7wtest",
-		pass:    "",
-		owner:   "nanago",
-		conn:    nil}
+		nick:    nick,
+		server:  server,
+		port:    port,
+		channel: channel,
+		pass:    pass,
+		owner:   owner,
+	}
 }
 
 // Connect bot to IRC server
@@ -80,13 +81,17 @@ func (bot *Bot) Connect() (conn net.Conn, err error) {
 }
 
 // Set nick, join channel
-func join(bot *Bot) {
+func (bot *Bot) Login() {
 	fmt.Fprintf(bot.conn, "USER %s 8 * :%s\r\n", bot.nick, bot.nick)
 	fmt.Fprintf(bot.conn, "NICK %s\r\n", bot.nick)
+}
+
+// Join a channel
+func (bot *Bot) Join(channel string) {
 	fmt.Fprintf(bot.conn, "JOIN %s\r\n", bot.channel)
 }
 
-func respond(bot *Bot, user *User, response string, msg *Message) {
+func (bot *Bot) Respond(user *User, response string, msg *Message) {
 	res := ""
 	if msg.to == bot.nick {
 		res = fmt.Sprintf("PRIVMSG %s :%s\r\n", user.nick, response)
@@ -97,13 +102,8 @@ func respond(bot *Bot, user *User, response string, msg *Message) {
 	fmt.Fprintf(bot.conn, res)
 }
 
-// Check if line is PING
-func ping(line string) bool {
-	return strings.HasPrefix(line, "PING")
-}
-
 // Respond to PING with PONG + the random string
-func pingResponse(bot *Bot, pong *Message) {
+func (bot *Bot) Pong(pong *Message) {
 	res := fmt.Sprintf("PONG :%s\r\n", pong.content)
 	log.Printf("--> %s", res)
 	fmt.Fprintf(bot.conn, res)
@@ -123,6 +123,7 @@ func parseSource(source string) (*User, error) {
 
 }
 
+// Parse a command and get arguments
 func parseCommand(command string) (*Com, error) {
 	re, _ := regexp.Compile(`\.(\w+) ?(.*)$`)
 	out := re.FindStringSubmatch(command)
@@ -135,21 +136,25 @@ func parseCommand(command string) (*Com, error) {
 	}
 }
 
-func wiki(bot *Bot, args string) string {
+// Lookup a topic on wikipedia
+func (bot *Bot) Wiki(args string) string {
 	return fmt.Sprintf("https://en.wikipedia.org/w/index.php?search=%s&title=Special%%3ASearch&go=Go", args)
 }
 
-func choose(bot *Bot, args string) string {
+// Choose an item from a list
+func (bot *Bot) Choose(args string) string {
 	choices := strings.Split(args, ",")
-	return choices[rand.Intn(len(choices))]
+	choice := choices[rand.Intn(len(choices))]
+
+	return strings.TrimSpace(choice)
 }
 
-func nick(bot *Bot, nick string) {
+func (bot *Bot) Nick(nick string) {
 	bot.nick = nick
 	fmt.Fprintf(bot.conn, "NICK %s\r\n", bot.nick)
 }
 
-func set(bot *Bot, args string, user *User) string {
+func (bot *Bot) Set(args string, user *User) string {
 	if user.nick != bot.owner {
 		return "Only the bot owner can set values!"
 	}
@@ -162,7 +167,7 @@ func set(bot *Bot, args string, user *User) string {
 	tar := in[1]
 	switch com {
 	case "nick":
-		nick(bot, tar)
+		bot.Nick(tar)
 		return fmt.Sprintf("Nick set to %s.", bot.nick)
 	case "owner":
 		bot.owner = tar
@@ -172,29 +177,31 @@ func set(bot *Bot, args string, user *User) string {
 	}
 }
 
-func shuffle(a []string) {
+func shuffle(a []string) []string {
 	for i := range a {
 		j := rand.Intn(i + 1)
 		a[i], a[j] = a[j], a[i]
 	}
+	return a
 }
 
-func order(bot *Bot, args string) string {
+func (bot *Bot) Order(args string) string {
 	choices := strings.Split(args, ",")
 	trimmed := []string{}
 	for _, w := range choices {
 		trimmed = append(trimmed, strings.TrimSpace(w))
 	}
-	shuffle(trimmed)
-	ordered := strings.Join(choices, ",")
+	choices = shuffle(trimmed)
+	ordered := strings.Join(choices, ", ")
 	return ordered
 }
 
-func markov(bot *Bot, args string) string {
+func (bot *Bot) Markov(args string) string {
 	return "This is supposed to be generated using a markov chain"
 }
 
-func commands(bot *Bot, msg *Message) {
+// Maps the user commands to the functions of the bot
+func (bot *Bot) Command(msg *Message) {
 	com, err1 := parseCommand(msg.content)
 	user, err2 := parseSource(msg.source)
 	if err1 == nil || err2 == nil {
@@ -202,22 +209,31 @@ func commands(bot *Bot, msg *Message) {
 		res := ""
 		switch com.command {
 		case "wiki":
-			res = wiki(bot, args)
+			res = bot.Wiki(args)
 		case "c":
-			res = choose(bot, args)
+			res = bot.Choose(args)
 		case "o":
-			res = order(bot, args)
+			res = bot.Order(args)
 		case "set":
-			res = set(bot, args, user)
+			res = bot.Set(args, user)
 		case "markov":
-			res = markov(bot, args)
+			res = bot.Markov(args)
 		case "commands":
 			res = "The available commands are: wiki, c, o, set, markov."
+		default:
+			res = "That isn't a command. Try .commands to see some."
 		}
-		if res != "" {
-			respond(bot, user, res, msg)
+		bot.Respond(user, res, msg)
+	} else {
+
+		if err1 != nil {
+			log.Println(err1)
+		}
+		if err2 != nil {
+			log.Println(err2)
 		}
 	}
+
 }
 
 func markov_write(writer *bufio.Writer, words string) {
@@ -225,13 +241,28 @@ func markov_write(writer *bufio.Writer, words string) {
 	writer.Flush()
 }
 
-func main() {
+var nickFlag = flag.String("nick", "kobobot", "The username for the bot.")
+var serverFlag = flag.String("server", "irc.rizon.net", "The IRC server to connect to.")
+var portFlag = flag.String("port", "6667", "The port to connect to the server on.")
+var ownerFlag = flag.String("owner", "nanago", "The owner of the bot.")
+var chanFlag = flag.String("channel", "#kobobot", "The default channel to connect to.")
+var passFlag = flag.String("password", "", "The password for the channel.")
 
-	bot := NewBot()
+func main() {
+	flag.Parse()
+
+	// Create a new bot and a socket to the desired server
+	bot := NewBot(*nickFlag, *serverFlag, *portFlag, *ownerFlag, *chanFlag, *passFlag)
 	conn, _ := bot.Connect()
-	join(bot)
 	defer conn.Close()
 
+	// The bot connects to the server with the designated username
+	bot.Login()
+
+	// Joins the bot to the default channel
+	bot.Join(bot.channel)
+
+	// For markov chain records
 	f, err := os.Create("/tmp/markov")
 	if err != nil {
 		panic(err)
@@ -239,6 +270,7 @@ func main() {
 	defer f.Close()
 	writer := bufio.NewWriter(f)
 
+	// Read from the socket constantly
 	reader := bufio.NewReader(conn)
 	tp := textproto.NewReader(reader)
 	for {
@@ -259,9 +291,9 @@ func main() {
 		if err == nil {
 			switch {
 			case msg.command == "PING":
-				pingResponse(bot, msg)
+				go bot.Pong(msg)
 			case msg.command == "PRIVMSG":
-				commands(bot, msg)
+				go bot.Command(msg)
 			}
 		}
 	}
