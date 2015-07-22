@@ -126,7 +126,6 @@ func parseSource(source string) (*User, error) {
 
 }
 
-// Parse a command and get arguments
 func parseCommand(command string) (*Com, error) {
 	re, _ := regexp.Compile(`\.(\w+) ?(.*)$`)
 	out := re.FindStringSubmatch(command)
