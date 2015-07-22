@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 )
 
 type Message struct {
@@ -80,7 +81,7 @@ func (bot *Bot) Connect() (conn net.Conn, err error) {
 	return bot.conn, nil
 }
 
-// Set nick, join channel
+// Set nick and authenticate with server
 func (bot *Bot) Login() {
 	fmt.Fprintf(bot.conn, "USER %s 8 * :%s\r\n", bot.nick, bot.nick)
 	fmt.Fprintf(bot.conn, "NICK %s\r\n", bot.nick)
@@ -92,21 +93,23 @@ func (bot *Bot) Join(channel string) {
 }
 
 func (bot *Bot) Respond(user *User, response string, msg *Message) {
-	res := ""
 	if msg.to == bot.nick {
-		res = fmt.Sprintf("PRIVMSG %s :%s\r\n", user.nick, response)
+		bot.write(fmt.Sprintf("PRIVMSG %s :%s\r\n", user.nick, response))
 	} else {
-		res = fmt.Sprintf("PRIVMSG %s :%s: %s\r\n", msg.to, user.nick, response)
+		bot.write(fmt.Sprintf("PRIVMSG %s :%s: %s\r\n", msg.to, user.nick, response))
 	}
-	log.Printf("--> %s", res)
-	fmt.Fprintf(bot.conn, res)
+}
+
+// Write message to server
+func (bot *Bot) write(msg string) {
+	log.Printf("--> %s", msg)
+	fmt.Fprintf(bot.conn, msg)
 }
 
 // Respond to PING with PONG + the random string
 func (bot *Bot) Pong(pong *Message) {
 	res := fmt.Sprintf("PONG :%s\r\n", pong.content)
-	log.Printf("--> %s", res)
-	fmt.Fprintf(bot.conn, res)
+	bot.write(res)
 }
 
 // Parse message source for nick, user and hostname values
@@ -223,6 +226,7 @@ func (bot *Bot) Command(msg *Message) {
 		default:
 			res = "That isn't a command. Try .commands to see some."
 		}
+		log.Printf("<-- %s\n", com.command)
 		bot.Respond(user, res, msg)
 	} else {
 
@@ -253,12 +257,13 @@ func main() {
 
 	// Create a new bot and a socket to the desired server
 	bot := NewBot(*nickFlag, *serverFlag, *portFlag, *ownerFlag, *chanFlag, *passFlag)
+	log.Println(bot)
 	conn, _ := bot.Connect()
 	defer conn.Close()
 
 	// The bot connects to the server with the designated username
 	bot.Login()
-
+	time.Sleep(time.Second * 5)
 	// Joins the bot to the default channel
 	bot.Join(bot.channel)
 
@@ -273,6 +278,7 @@ func main() {
 	// Read from the socket constantly
 	reader := bufio.NewReader(conn)
 	tp := textproto.NewReader(reader)
+
 	for {
 		line, err := tp.ReadLine()
 		if err != nil {
@@ -289,11 +295,16 @@ func main() {
 
 		// Perform actions depending on the content of the message
 		if err == nil {
+			log.Println("--- ", msg.source)
+			log.Println("--- ", msg.command)
+			log.Println("--- ", msg.to)
+			log.Println("--- ", msg.content)
+
 			switch {
 			case msg.command == "PING":
-				go bot.Pong(msg)
+				bot.Pong(msg)
 			case msg.command == "PRIVMSG":
-				go bot.Command(msg)
+				bot.Command(msg)
 			}
 		}
 	}
